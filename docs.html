@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documentation — OSM Extract &amp; Buffer Tool</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif; background: #f5f7fa; color: #1f2d3d; line-height: 1.6; }
+    header { background: #1f2d3d; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
+    header h1 { font-size: 18px; margin: 0; }
+    header a { color: #7ef3ff; font-size: 13px; text-decoration: none; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+    nav { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 18px; margin-bottom: 20px; font-size: 14px; }
+    nav a { color: #2f81f7; text-decoration: none; margin-right: 14px; white-space: nowrap; }
+    nav a:hover { text-decoration: underline; }
+    h2 { font-size: 20px; margin: 34px 0 10px; border-bottom: 2px solid #2f81f7; padding-bottom: 4px; }
+    h3 { font-size: 15px; margin: 22px 0 6px; color: #123c6b; }
+    p, li { font-size: 14px; }
+    code { background: #eef2f7; padding: 1px 5px; border-radius: 4px; font-size: 13px; font-family: ui-monospace, Consolas, monospace; }
+    pre { background: #10222e; color: #d5f7ff; padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
+    pre code { background: none; color: inherit; padding: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; background: #fff; }
+    th, td { border: 1px solid #dde3ea; padding: 6px 10px; text-align: left; vertical-align: top; }
+    th { background: #eef2f7; }
+    .tip { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 8px 12px; border-radius: 0 8px 8px 0; font-size: 13px; margin: 10px 0; }
+    .warn { background: #fff3e0; border-left: 4px solid #ef6c00; padding: 8px 12px; border-radius: 0 8px 8px 0; font-size: 13px; margin: 10px 0; }
+    .kbd { border: 1px solid #b7c3d0; border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; font-size: 12px; background: #fff; font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>&#128639;&#65039; OSM Extract &amp; Buffer Tool — Documentation</h1>
+  <a href="/" style="margin-left:auto">&larr; Open the tool</a>
+</header>
+<main>
+
+<nav>
+  <a href="#workflow">Workflow</a>
+  <a href="#categories">Categories</a>
+  <a href="#extractall">Extract All</a>
+  <a href="#local">Local Data &amp; Persistence</a>
+  <a href="#snap">Snapping</a>
+  <a href="#crs">CRS / UTM</a>
+  <a href="#gis">GIS Tools</a>
+  <a href="#composite">Composite Map</a>
+  <a href="#export">Export</a>
+  <a href="#plugins">Plugin Development</a>
+</nav>
+
+<h2 id="workflow">&#127919; Standard Workflow</h2>
+<p>The panel is ordered as a pipeline. Follow it top to bottom:</p>
+<ol>
+  <li><b>Data Extraction</b> — search a place (autocomplete suggestions included), select an extent (draw a rectangle or use the current map extent, max 100 km&sup2;), pick a data source (live API or cached local dataset), choose the measurement CRS (UTM auto-detect or manual override).</li>
+  <li><b>Layers</b> — toggle layer visibility, build the Composite Map, and use local preview (click any feature to inspect it).</li>
+  <li><b>Category boxes</b> (Road / Building / Water / Natural &amp; Land Use) — extract, buffer (m / mm / cm / km / ft), dissolve.</li>
+  <li><b>GIS Tools</b> — professional digitizing: select, move, vertex-edit, draw point/line/polygon, split, merge, delete — on digitized <b>and</b> extracted layers.</li>
+  <li><b>Plugins</b> — load JS processing plugins (two built-ins ship with the app).</li>
+  <li><b>Export</b> — GeoJSON / SHP / SVG per dataset, map-view PDF / PNG, or <b>Download All (ZIP)</b> for everything at once.</li>
+</ol>
+
+<h2 id="categories">&#128506; Categories &amp; Sub-categories</h2>
+<table>
+  <tr><th>Category</th><th>Source tags</th><th>Notes</th></tr>
+  <tr><td><b>Road</b></td><td><code>highway=</code> (motorway &hellip; steps)</td><td>Line features; filter by road class before extracting.</td></tr>
+  <tr><td><b>Building</b></td><td><code>building=</code></td><td>Polygon footprints.</td></tr>
+  <tr><td><b>Water</b></td><td><code>natural=water</code>, <code>waterway=</code></td><td>Polygons (riverbanks, lakes) + lines (rivers, canals).</td></tr>
+  <tr><td><b>Natural &amp; Land Use</b></td><td><code>natural=</code> (wood, scrub, grassland, wetland&hellip;) + <code>landuse=</code> (forest, farmland, grass&hellip;)</td><td>Polygon features. Water features stay in the Water category to avoid duplicates.</td></tr>
+</table>
+
+<h2 id="extractall">&#9889; Extract All (one click)</h2>
+<p>The <b>Extract All</b> button issues a <b>single Overpass request</b> for all categories, caches the result, and instantly populates Road, Building, Water and Natural &amp; Land Use with your current sub-category filters. If the same extent was downloaded before, the server cache is reused (no new API call). The source mode switches to <b>Local</b> automatically.</p>
+
+<h2 id="local">&#128190; Local Data &amp; Persistence</h2>
+<ul>
+  <li><b>Download Extent Data (Cache)</b> — one request downloads everything for the extent to the server cache (<code>local_cache/</code>). Extraction from it is instant and repeatable.</li>
+  <li><b>Browser storage persistence</b> — every downloaded dataset is also saved to <b>IndexedDB</b> in your browser. After a page reload the most recent dataset is restored automatically, and any saved dataset can be reloaded from <b>Saved datasets</b> &rarr; <b>Load</b>.</li>
+  <li><b>Clear Server Cache</b> — deletes all cached JSON from the server <i>and</i> the browser copies (frees disk).</li>
+  <li><b>Saved datasets &#128465;</b> — removes only the selected saved copy from browser storage.</li>
+</ul>
+<div class="tip">Local <b>preview</b> (Layers panel) renders the cached dataset on the map — click any feature to highlight it and read its attributes. No re-extract needed; toggle the checkbox off to remove the preview.</div>
+
+<h2 id="snap">&#129518; Snapping (0&ndash;100 slider)</h2>
+<ul>
+  <li><b>Vertex snap</b> — targets include <i>every loaded layer</i>: extracted roads/buildings/water/natural, buffers, dissolved, composite and digitized features. The nearest vertex within tolerance shows a <b>magenta dot</b>.</li>
+  <li><b>Edge snap</b> — projects the cursor onto the nearest segment of any polygon/line (precise joins between vertices).</li>
+  <li><b>Tolerance slider</b> (Data Extraction panel, below Extract All): 0 = off, 100 = very strong. 12 px is a good default; raise it for coarse data, lower it in dense areas.</li>
+</ul>
+<div class="tip">Zoom controls real-world accuracy: at z18, 12 px &asymp; 0.6 m; at z19 &asymp; 0.3 m.</div>
+
+<h2 id="crs">&#128200; CRS / UTM Control</h2>
+<p>All measurements (length, area, buffers) are computed in a UTM projection for meter-accurate results. <b>Auto-detect</b> picks the correct zone for the extent. The <b>UTM Zone + hemisphere selects</b> let you force any zone worldwide (e.g. cross-border or custom projects) — the override applies to the EPSG label shown under the extent and to server-side buffer operations.</p>
+
+<h2 id="gis">&#128295; GIS Tools (Digitizing)</h2>
+<p>Editing operates on <b>every loaded layer</b> — digitized features <i>and</i> extracted datasets. Edits stay in the source layer and are included in exports automatically.</p>
+<table>
+  <tr><th>Tool</th><th>Behaviour</th></tr>
+  <tr><td><b>Select</b></td><td>Click a feature = select. <span class="kbd">Shift</span>+click = multi-select. Drag the selected feature = move it. Drag the cyan handles = edit vertices (live preview, geodesic metrics recomputed).</td></tr>
+  <tr><td><b>Point</b></td><td>One click places the point (snapped if enabled).</td></tr>
+  <tr><td><b>Line / Polygon</b></td><td>Click = vertex; <span class="kbd">Enter</span> or double-click = finish; click the first vertex (snap dot) to close a polygon. Live length/area readout while sketching.</td></tr>
+  <tr><td><b>Split</b></td><td>Select ONE polygon, activate Split, draw a cutting line past both boundaries, <span class="kbd">Enter</span>. Server-side Shapely split — planar-exact; pieces stay in the source layer.</td></tr>
+  <tr><td><b>Merge</b></td><td>2+ selected: same type = real dissolve (union for polygons, Multi* for lines/points) — in-source if all from one layer, otherwise into the Composite. Mixed types = moves the selection into the Composite map (<code>src</code> records origin).</td></tr>
+  <tr><td><b>Delete</b></td><td><span class="kbd">Del</span> or the button; undoable.</td></tr>
+  <tr><td><b>Finish / Cancel</b></td><td><span class="kbd">Enter</span> / <span class="kbd">Esc</span>.</td></tr>
+</table>
+<div class="tip">Every operation is captured by Undo/Redo. Extracted-layer edits also update the layer's stored dataset — export includes them.</div>
+
+<h2 id="composite">&#128506; Composite Map (merge across categories)</h2>
+<p>The <b>Build Composite Map</b> button (Layers panel) compiles all <b>visible</b> category layers + digitized features into a single FeatureCollection:</p>
+<ul>
+  <li>Original OSM IDs, names and attributes are preserved.</li>
+  <li>Each feature gains a <code>src</code> attribute recording its origin layer (<code>road</code>, <code>building</code>, <code>water</code>, <code>nature</code>, <code>digitized</code>).</li>
+  <li>The composite appears as a pink layer and as <code>composite-map</code> in the Export panel and Download All ZIP.</li>
+</ul>
+<p>For a hand-picked map: Shift+click features across different layers, then <b>Merge</b> — they move into the Composite with their IDs intact.</p>
+
+<h2 id="export">&#128230; Export</h2>
+<ul>
+  <li><b>GeoJSON / SHP / SVG</b> — the selected category+stage (Base / Buffer / Dissolved / <b>Composite Map</b>). SHP ZIP includes <code>.shp/.shx/.dbf/.prj</code> (WGS 84).</li>
+  <li><b>PDF / PNG</b> — current map view capture.</li>
+  <li><b>Download All (ZIP)</b> — every dataset that exists: all categories &times; stages, composite map, digitized features. Each in its own folder with GeoJSON + Shapefile set + SVG + a README manifest.</li>
+</ul>
+
+<h2 id="plugins">&#128268; Plugin Development</h2>
+<p>Plugins are JavaScript files that call <code>GISPlugin.register()</code>. Two built-ins ship with the app (<b>Multipart Split</b> — QGIS "Multipart to Singleparts" equivalent, and <b>Feature Reporter</b>); user plugins load via file or URL and persist in <code>localStorage</code>.</p>
+
+<h3>Plugin skeleton</h3>
+<pre><code>GISPlugin.register({
+  id: 'my-plugin',              // unique id (required)
+  name: 'My Plugin',            // display name (required)
+  version: '1.0.0',
+  author: 'Your Name',
+  description: 'What it does',
+  tools: [
+    {
+      id: 'my-tool',
+      label: '&#128295; My Tool',   // button text in the Plugins panel
+      run(ctx) {
+        ctx.toast('Hello from plugin!');
+      },
+    },
+  ],
+});</code></pre>
+
+<h3>ctx API reference</h3>
+<table>
+  <tr><th>Member</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>ctx.map</code></td><td>Leaflet Map</td><td>The live map instance.</td></tr>
+  <tr><td><code>ctx.turf</code></td><td>Turf.js</td><td>Full Turf geo library.</td></tr>
+  <tr><td><code>ctx.state</code></td><td>object</td><td>App state — <code>state.layers.&lt;cat&gt;.fc</code>, <code>state.drawn.*</code>, <code>state.composite</code>, <code>state.bbox</code>&hellip;</td></tr>
+  <tr><td><code>ctx.editableCollections()</code></td><td>fn</td><td>All editable FeatureCollections with labels — iterate to transform every layer.</td></tr>
+  <tr><td><code>ctx.CATEGORIES</code></td><td>array</td><td>Category definitions.</td></tr>
+  <tr><td><code>ctx.bbox()</code></td><td>object|null</td><td>Selected extent <code>{south, west, north, east}</code>.</td></tr>
+  <tr><td><code>ctx.api(path, body)</code></td><td>async fn</td><td>Server call — <code>/api/buffer</code>, <code>/api/dissolve</code>, <code>/api/gis/split</code>, <code>/api/export/all</code>&hellip;</td></tr>
+  <tr><td><code>ctx.addGeoJSON(fc, style?)</code> / <code>ctx.clearTemp()</code></td><td>fn</td><td>Temporary highlight layers.</td></tr>
+  <tr><td><code>ctx.pushHist()</code> / <code>ctx.render()</code></td><td>fn</td><td>Call after mutating state; refresh the UI.</td></tr>
+  <tr><td><code>ctx.status(msg)</code> / <code>ctx.toast(msg, err?)</code> / <code>ctx.downloadBlob(name, blob)</code></td><td>fn</td><td>User feedback and downloads.</td></tr>
+</table>
+
+<h3>Example — transform every layer</h3>
+<pre><code>GISPlugin.register({
+  id: 'my-cleaner',
+  name: 'Geometry Cleaner',
+  version: '1.0.0',
+  author: 'You',
+  description: 'Drops properties from all loaded layers',
+  tools: [{
+    id: 'strip',
+    label: '🧹 Strip Properties',
+    run(ctx) {
+      ctx.editableCollections().forEach((col) =&gt; {
+        col.fc.features.forEach((f) =&gt; { f.properties = { osm_id: f.properties.osm_id }; });
+      });
+      ctx.pushHist();
+      ctx.render();
+      ctx.toast('Properties stripped (osm_id kept).');
+    },
+  }],
+});</code></pre>
+<div class="warn">Plugin code runs with full page privileges (same trust model as QGIS/ArcGIS plugins). Load only your own or trusted code. For heavy geometry work, extend the Flask server (<code>app.py</code>) with a new <code>/api/...</code> endpoint — <code>/api/gis/split</code> is a reference implementation — and call it via <code>ctx.api()</code>.</div>
+
+<h2>Running the server</h2>
+<pre><code>cd C:\GIS
+python app.py        # or double-click start_server.bat</code></pre>
+<p>For public deployment (Render/Railway/VPS) see <code>README.md</code> — <code>PORT</code>/<code>HOST</code> environment variables are supported.</p>
+
+</main>
+</body>
+</html>

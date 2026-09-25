@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OSM Extract &amp; Buffer Tool</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css?v=20260925b">
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">&#128639;&#65039; OSM Extract &amp; Buffer Tool</div>
+    <div class="searchbox">
+      <input id="searchInput" placeholder="Search place or coordinates (e.g. 28.6139, 77.2090)" autocomplete="off">
+      <button id="searchBtn">Search</button>
+      <div id="suggestions" class="hidden"></div>
+    </div>
+    <div class="history">
+      <button id="undoBtn" title="Undo last operation" disabled>&#8630; Undo</button>
+      <button id="redoBtn" title="Redo operation" disabled>&#8631; Redo</button>
+      <button id="clearBtn" title="Clear session">&#10005; Clear</button>
+      <a class="docs-link" href="/docs.html" target="_blank" title="Documentation">&#10067; Docs</a>
+    </div>
+  </header>
+
+  <main>
+    <aside id="panel">
+
+      <!-- 1 · DATA EXTRACTION -->
+      <section class="step" id="sec-area">
+        <h2 class="sec-head">&#9986;&#65039; Data Extraction <span class="chev">&#9662;</span></h2>
+        <div class="step-body">
+          <button id="drawBtn" class="wide secondary">&#9641; Draw Extent on Map</button>
+          <button id="viewBtn" class="wide secondary">Use Current Map Extent</button>
+          <div id="bboxInfo" class="hint">No extent selected yet.</div>
+          <div id="utmInfo" class="hint"></div>
+          <button id="fitBtn" class="wide secondary hidden">&#8982; Zoom to Extent</button>
+          <button id="extentToggleBtn" class="wide secondary hidden">&#11041; Hide Extent Boundary</button>
+
+          <div class="subhead">CRS &mdash; Measurement Projection</div>
+          <label class="fldlabel" for="utmZone">UTM Zone (buffer &amp; measurement CRS)</label>
+          <select id="utmZone"><option value="auto" selected>Auto-detect</option></select>
+          <div class="hint">Auto-detects the UTM zone; override to force a specific zone (EPSG:326xx / 327xx).</div>
+
+          <div class="subhead">Data Source</div>
+          <label class="radiorow"><input type="radio" name="srcmode" value="api" checked> API &mdash; live Overpass request</label>
+          <label class="radiorow"><input type="radio" name="srcmode" value="local"> Local &mdash; cached dataset (offline)</label>
+          <button id="downloadBtn" class="wide secondary">&#11015; Download Extent Data (Cache)</button>
+          <div id="localInfo" class="hint"></div>
+          <label class="fldlabel" for="savedAreas">Saved datasets (browser storage &mdash; survive reload)</label>
+          <div class="row">
+            <select id="savedAreas"><option value="">No saved datasets</option></select>
+            <button id="savedLoadBtn" class="mini">Load</button>
+            <button id="savedRemoveBtn" class="mini" title="Delete saved copy from browser">&#128465;</button>
+          </div>
+          <button id="cacheClearBtn" class="wide secondary">&#128465;&#65039; Clear Server Cache</button>
+
+          <div class="subhead">One-Click Extract</div>
+          <button id="extractAllBtn" class="wide allbtn" disabled>&#9889; Extract All Layers</button>
+
+          <div class="subhead">Snapping</div>
+          <label class="radiorow"><input type="checkbox" id="snapToggle" checked> Snapping enabled (vertices + edges)</label>
+          <label class="fldlabel" for="snapRange">Snap tolerance &mdash; <span id="snapVal">12</span> px</label>
+          <input type="range" id="snapRange" min="0" max="100" value="12" step="1">
+          <div class="hint">Capture radius in px; targets include all loaded layers.</div>
+        </div>
+      </section>
+
+      <!-- 2 · LAYERS -->
+      <section class="step collapsed" id="sec-layers">
+        <h2 class="sec-head">Layers <span class="chev">&#9662;</span></h2>
+        <div class="step-body">
+          <div id="layerRows"></div>
+          <div class="layerrow"><input type="checkbox" id="visBuffer" checked><span class="swatch" style="background:#ff9800"></span> Buffers</div>
+          <div class="layerrow"><input type="checkbox" id="visDissolved" checked><span class="swatch" style="background:#2e7d32"></span> Dissolved</div>
+          <div class="layerrow"><input type="checkbox" id="visDrawn" checked><span class="swatch" style="background:#00bcd4"></span> Digitized features</div>
+          <div class="layerrow"><input type="checkbox" id="visComposite" checked><span class="swatch" style="background:#e91e63"></span> Composite map</div>
+          <button id="compositeBtn" class="wide primary" disabled>&#128506; Build Composite Map (visible layers)</button>
+          <div class="hint">Merges visible layers into one exportable FeatureCollection; attributes preserved, <code>src</code> = origin layer.</div>
+          <div class="subhead">Local Preview &mdash; click a feature to inspect</div>
+          <div class="layerrow"><input type="checkbox" id="visPrevRoad"><span class="swatch" style="background:#1e6bff"></span> Preview Roads</div>
+          <div class="layerrow"><input type="checkbox" id="visPrevBuilding"><span class="swatch" style="background:#ab47bc"></span> Preview Buildings</div>
+          <div class="layerrow"><input type="checkbox" id="visPrevWater"><span class="swatch" style="background:#4fc3f7"></span> Preview Water</div>
+          <div class="layerrow"><input type="checkbox" id="visPrevNature"><span class="swatch" style="background:#66bb6a"></span> Preview Natural / Land Use</div>
+          <div class="hint">Click a feature to inspect its attributes. Toggle off to remove the preview.</div>
+        </div>
+      </section>
+
+      <div id="catBoxes"></div>
+
+      <!-- 4 · GIS TOOLS -->
+      <section class="step collapsed" id="sec-gis">
+        <h2 class="sec-head">&#128295; GIS Tools (Digitize) <span class="chev">&#9662;</span></h2>
+        <div class="step-body">
+          <div class="hint">Editing applies to digitized and extracted features; edits persist in the source layer.</div>
+          <div class="gistools">
+            <button id="gtSelect" class="gt active" title="Select / move / edit vertices (Shift+click = multi-select)">&#10094;&#10095; Select</button>
+            <button id="gtPoint" class="gt" title="Draw point">&#128205; Point</button>
+            <button id="gtLine" class="gt" title="Draw line">&#65293; Line</button>
+            <button id="gtPoly" class="gt" title="Draw polygon">&#11041; Polygon</button>
+            <button id="gtSplit" class="gt" title="Split selected polygon with a line (Shapely, planar-exact)">&#9986; Split</button>
+            <button id="gtMerge" class="gt" title="Merge selected: same type = dissolve (union); mixed types = move into Composite">&#10697; Merge</button>
+            <button id="gtDelete" class="gt" title="Delete selected features">&#128465; Delete</button>
+            <button id="gtFinish" class="gt" title="Finish sketch (Enter)">&#10003; Finish</button>
+            <button id="gtCancel" class="gt" title="Cancel sketch (Esc)">&#10005; Cancel</button>
+          </div>
+          <div id="gisReadout" class="readout">Tool: Select &mdash; click a feature to select it.</div>
+          <div class="hint"><b>Enter</b> finish &bull; <b>Esc</b> cancel &bull; <b>Del</b> delete &bull; drag = move feature &bull; drag handles = edit vertex.</div>
+        </div>
+      </section>
+
+      <!-- 5 · PLUGINS -->
+      <section class="step collapsed" id="sec-plugins">
+        <h2 class="sec-head">&#128268; Plugins <span class="chev">&#9662;</span></h2>
+        <div class="step-body">
+          <div class="hint">Load JavaScript processing plugins. <a href="/docs.html#plugins" target="_blank">Plugin API &rarr;</a></div>
+          <input type="file" id="pluginFile" accept=".js" class="hidden">
+          <button id="pluginLoadBtn" class="wide secondary">&#128193; Load Plugin (JS file)</button>
+          <input id="pluginUrl" placeholder="&hellip;or paste a plugin JS URL">
+          <button id="pluginUrlBtn" class="wide secondary">&#127760; Load from URL</button>
+          <div id="pluginList"></div>
+        </div>
+      </section>
+
+      <!-- 6 · EXPORT -->
+      <section class="step collapsed" id="sec-export">
+        <h2 class="sec-head">&#128230; Export <span class="chev">&#9662;</span></h2>
+        <div class="step-body">
+          <label class="fldlabel" for="expCat">Category</label>
+          <select id="expCat">
+            <option value="road">Road</option>
+            <option value="building">Building</option>
+            <option value="water">Water</option>
+            <option value="nature">Natural / Land Use</option>
+            <option value="composite">Composite Map</option>
+          </select>
+          <label class="fldlabel" for="expStage">Stage</label>
+          <select id="expStage">
+            <option value="fc">Base (extracted)</option>
+            <option value="bufferFC">Buffer</option>
+            <option value="dissolvedFC">Dissolved</option>
+          </select>
+          <div class="fmtgrid">
+            <button id="fmtGeojson" class="fmt" style="background:#a0522d" disabled>GeoJSON</button>
+            <button id="fmtShp" class="fmt" style="background:#7f8c9b" disabled>SHP</button>
+            <button id="fmtSvg" class="fmt" style="background:#2e9bd6" disabled>SVG</button>
+            <button id="fmtPdf" class="fmt" style="background:#8c4a2f">PDF</button>
+            <button id="fmtPng" class="fmt" style="background:#2e9bd6">PNG</button>
+          </div>
+          <div class="subhead">All-in-one</div>
+          <button id="fmtAll" class="wide allbtn" disabled>&#128230; Download All (ZIP)</button>
+          <div class="hint" id="allInfo">No datasets yet — run an extract first.</div>
+          <div class="hint">All datasets in one ZIP: GeoJSON + Shapefile + SVG per folder. PDF / PNG = map view capture.</div>
+        </div>
+      </section>
+    </aside>
+    <div id="map"></div>
+  </main>
+
+  <div id="status"></div>
+  <div id="toast"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="app.js?v=20260925b"></script>
+</body>
+</html>
